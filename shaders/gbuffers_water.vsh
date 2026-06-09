@@ -17,3 +17,5 @@ void main() {
     normal = mat3(gbufferModelViewInverse) * normal;
     worldPos = (gbufferModelViewInverse * gl_ModelViewMatrix * gl_Vertex).xyz;
 }
+
+
