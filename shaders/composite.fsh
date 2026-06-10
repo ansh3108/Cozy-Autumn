@@ -15,6 +15,9 @@ uniform mat4 gbufferProjectionInverse;
 uniform mat4 shadowModelView;
 uniform mat4 shadowProjection;
 
+uniform float viewWidth;
+uniform float viewHeight;
+
 const vec3 sunColor = vec3(1.4, 0.85, 0.4);
 const vec3 skyAmbient = vec3(0.15, 0.25, 0.45);
 const vec3 groundAmbient = vec3(0.15, 0.08, 0.03);
@@ -133,6 +136,34 @@ vec4 getSSR(vec3 viewPos, vec3 viewNormal) {
     return vec4(0.0);
 }
 
+vec3 getBloom(vec2 coord, vec2 texelSize) {
+    vec3 bloomAcc = vec3(0.0);
+    float weightSum = 0.0;
+    
+    for(int x = -4; x <= 4; x++) {
+        for(int y = -4; y <= 4; y++) {
+            vec2 offset = vec2(x, y) * texelSize * 2.5;
+            vec2 sampleCoord = coord + offset;
+            
+            if(sampleCoord.x > 0.0 && sampleCoord.x < 1.0 && sampleCoord.y > 0.0 && sampleCoord.y < 1.0) {
+                float lm = texture(colortex1, sampleCoord).x;
+                if(lm > 0.85) {
+                    vec3 sColor = texture(colortex0, sampleCoord).rgb;
+                    float weight = exp(-length(vec2(x, y)) * 0.5);
+                    bloomAcc += pow(max(sColor, 0.0), vec3(2.2)) * weight;
+                    weightSum += weight;
+                }
+            }
+        }
+    }
+    
+    if(weightSum > 0.0) {
+        vec3 amberTint = vec3(1.4, 0.65, 0.15);
+        return (bloomAcc / weightSum) * amberTint * 1.8;
+    }
+    return vec3(0.0);
+}
+
 vec3 ACESFilm(vec3 x) {
     float a = 2.51;
     float b = 0.03;
@@ -204,6 +235,9 @@ void main() {
             float specular = pow(NdotH, 200.0) * 1.5;
             litColor += sunColor * specular * shadow;
         }
+
+        vec3 bloom = getBloom(texcoord, vec2(1.0 / viewWidth, 1.0 / viewHeight));
+        litColor += bloom;
 
         color.rgb = litColor;
     } else {
