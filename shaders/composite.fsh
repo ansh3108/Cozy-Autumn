@@ -17,6 +17,7 @@ uniform mat4 shadowProjection;
 
 uniform float viewWidth;
 uniform float viewHeight;
+uniform float frameTimeCounter;
 
 const vec3 sunColor = vec3(1.4, 0.85, 0.4);
 const vec3 skyAmbient = vec3(0.15, 0.25, 0.45);
@@ -149,8 +150,13 @@ vec3 getBloom(vec2 coord, vec2 texelSize) {
                 float lm = texture(colortex1, sampleCoord).x;
                 if(lm > 0.85) {
                     vec3 sColor = texture(colortex0, sampleCoord).rgb;
+                    
+                    float isGlowberry = smoothstep(0.5, 0.7, sColor.g) * smoothstep(0.3, 0.0, sColor.b);
+                    float isShroomlight = smoothstep(0.7, 0.9, sColor.r) * smoothstep(0.4, 0.1, sColor.b);
+                    float emissiveBoost = 1.0 + (isGlowberry * 3.0) + (isShroomlight * 2.0);
+                    
                     float weight = exp(-length(vec2(x, y)) * 0.5);
-                    bloomAcc += pow(max(sColor, 0.0), vec3(2.2)) * weight;
+                    bloomAcc += pow(max(sColor, 0.0), vec3(2.2)) * weight * emissiveBoost;
                     weightSum += weight;
                 }
             }
@@ -208,9 +214,16 @@ void main() {
 
         float NdotL = max(dot(normal, worldLightVector), 0.0);
         vec3 sunlight = sunColor * NdotL * shadow * lightmap.y;
-        vec3 blocklight = blocklightColor * lightmap.x;
+        
+        float flicker = sin(frameTimeCounter * 9.42) * 0.03 + sin(frameTimeCounter * 13.8 + 2.0) * 0.02;
+        vec3 dynamicBlocklight = blocklightColor * lightmap.x * (1.0 + flicker * smoothstep(0.5, 1.0, lightmap.x));
 
-        vec3 litColor = color.rgb * (ambient + sunlight + blocklight);
+        vec3 litColor = color.rgb * (ambient + sunlight + dynamicBlocklight);
+
+        float interiorFactor = 1.0 - smoothstep(0.0, 0.4, lightmap.y);
+        float luma = dot(litColor, vec3(0.299, 0.587, 0.114));
+        vec3 cozyColor = mix(litColor, vec3(luma), 0.15) * vec3(1.15, 0.95, 0.8);
+        litColor = mix(litColor, cozyColor, interiorFactor);
 
         if (isWater > 0.5) {
             vec3 viewDir = normalize(viewPos);
@@ -257,5 +270,6 @@ void main() {
 
     color.rgb = ACESFilm(color.rgb);
 }
+
 
 
